@@ -20,7 +20,7 @@
 
 int respond (int sock);
 
-char usrname[] = "username";
+char username[] = "username";
 char password[] = "password";
 #include <stdint.h>
 #include <stdlib.h>
@@ -56,13 +56,13 @@ int main( int argc, char *argv[] ) {
   int sockfd, newsockfd, portno = PORT;
   socklen_t clilen;
   struct sockaddr_in serv_addr, cli_addr;
-  clilen = sizeof(cli_addr
+  clilen = sizeof(cli_addr);
 
   printf("encoding start \n");// We have implemented base64 encoding you just need to use this function
-  char *token = base64_encode("20xx-xxxxx:password", strlen("20xx-xxxxx:password"));//you can change your userid
+  char *token = base64_encode("username:password", strlen("username:password"));//you can change your userid
   printf("encoding end \n");
-
-  //browser will repond with base64 encoded "userid:password" string 
+  
+  //browser will respond with base64 encoded "userid:password" string 
   //You should parse authentification information from http 401 responese and compare it
 
 
@@ -83,11 +83,26 @@ int main( int argc, char *argv[] ) {
 
   /* Initialize socket structure */
 
+  bzero((char *) &serv_addr, sizeof(serv_addr));
+
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_addr.s_addr = INADDR_ANY;
+  serv_addr.sin_port = htons(portno);
+
   /* TODO : Now bind the host address using bind() call. 10% of score*/
     //it was mostly same as tutorial
 
+    if ( bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1 ){
+    perror("bind error");
+    exit(1);
+  }
+
   /* TODO : listen on socket you created  10% of score*/
 
+  if ( listen(sockfd, 10) == -1 ){
+    perror("listen error");
+    exit(1);
+  }
 
   printf("Server is running on port %d\n", portno);
     
@@ -100,26 +115,108 @@ int main( int argc, char *argv[] ) {
       //TODO: accept connection
       //TODO: send 401 message(more information about 401 message : https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication) and authentificate user
       //close connection
+      
+      int offset, bytes;
+      char buffer[9000];
+      bzero(buffer,9000);
+      
+      offset = 0;
+      bytes = 0;
+      do {
+        // bytes < 0 : unexpected error
+        // bytes == 0 : client closed connection
+        bytes = recv(newsockfd, buffer + offset, 1500, 0);
+        offset += bytes;
+        // this is end of http request
+        if (strncmp(buffer + offset - 4, "\r\n\r\n", 4) == 0) break;
+      } while (bytes > 0);
 
+      if (bytes < 0) {
+        printf("recv() error\n");
+        return -1;
+      } else if (bytes == 0) {
+        printf("Client disconnected unexpectedly\n");
+        return -1;
+      }
 
+      buffer[offset] = 0;
+      printf("%s\n", buffer);
+      
+      // request의 Authorization value에 token이 존재하면 break.
+      if ( strstr(buffer, token) )
+      {
+        printf("WOW\n");
+        break;
+      }
+  
+      char message[] = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"Access to staging site\"\r\n\r\n";
+
+      int length = strlen(message);
+      while(length > 0) {
+        printf("send bytes : %d\n", bytes);
+        bytes = send(newsockfd, message, length, 0);
+        length = length - bytes;
+      }
+      printf("close\n");
+      shutdown(newsockfd, SHUT_RDWR);
+      close(newsockfd);
+  
     }
+
     //Respond loop
     while (1) {
-        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-        if ( newsockfd == -1 ){
-          perror("accept error");
-          exit(1);
-        }
-        //printf("test");
-        respond(newsockfd);
+      newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+      if ( newsockfd == -1 ){
+      perror("accept error");
+        exit(1);
       }
+      //printf("test");
+      respond(newsockfd);
+    }
 
   return 0;
 }
 //TODO: complete respond function 40% of score
 int respond(int sock) {
 
-    
+  int offset, bytes;
+  char buffer[9000];
+  bzero(buffer,9000);
+  
+  offset = 0;
+  bytes = 0;
+  do {
+    // bytes < 0 : unexpected error
+    // bytes == 0 : client closed connection
+    bytes = recv(sock, buffer + offset, 1500, 0);
+    offset += bytes;
+    // this is end of http request
+    if (strncmp(buffer + offset - 4, "\r\n\r\n", 4) == 0) break;
+  } while (bytes > 0);
+
+  if (bytes < 0) {
+    printf("recv() error\n");
+    return -1;
+  } else if (bytes == 0) {
+    printf("Client disconnected unexpectedly\n");
+    return -1;
+  }
+
+  buffer[offset] = 0;
+  printf("%s\n", buffer);
+
+  char message[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\n\r\n<html><body>Hello World!</body></html>\r\n\r\n";
+
+  int length = strlen(message);
+  while(length > 0) {
+    printf("send bytes : %d\n", bytes);
+    bytes = send(sock, message, length, 0);
+    length = length - bytes;
+  }
+  printf("close\n");
+  shutdown(sock, SHUT_RDWR);
+  close(sock);
+  
   return 0;
 }
 
