@@ -116,6 +116,8 @@ int main( int argc, char *argv[] ) {
       //TODO: send 401 message(more information about 401 message : https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication) and authentificate user
       //close connection
       
+
+      // request 정보를 읽어보는 알고리즘은 respond() 함수와 같다.
       int offset, bytes;
       char buffer[9000];
       bzero(buffer,9000);
@@ -142,13 +144,15 @@ int main( int argc, char *argv[] ) {
       buffer[offset] = 0;
       printf("%s\n", buffer);
       
-      // request의 Authorization value에 token이 존재하면 break.
+      // request의 Authorization value가 token과 일치하면 break.
+      // => buffer에 token 이 존재하는지 유무로 따졌다.
       if ( strstr(buffer, token) )
       {
         printf("WOW\n");
         break;
       }
   
+      // token이 없는 경우에는 401 response로 응답하였다.
       char message[] = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"Access to staging site\"\r\n\r\n";
 
       int length = strlen(message);
@@ -177,6 +181,7 @@ int main( int argc, char *argv[] ) {
   return 0;
 }
 
+// Content length 를 char array로 바꾸기 위해서 몇 자리수 인지 알려주는 함수.
 int countDigit (int n) {
   if (n == 0) return 1;
 
@@ -220,15 +225,17 @@ int respond(int sock) {
   buffer[offset] = 0;
   printf("%s\n", buffer);
 
+  // request message에서 GET의 위치를 기준으로 요청하는 file의 시작 index를 찾았다.
   char* file_start_index = strstr(buffer,"GET") + 5;
+  // request message에서 HTTP의 위치를 기준으로 요청하는 file의 끝 index를 찾았다.
   char* file_fin_index = strstr(buffer, "HTTP") - 1;
+  // file path의 길이를 알아냄.
   int str_size = (int)(file_fin_index - file_start_index);
-  //char file_name[str_size];
 
+
+  // request message에서 file path만 뽑아냈다.
   char* file_path = malloc(str_size);
   strncpy(file_path, buffer+5, str_size);
-  //strncpy(file_name, buffer+5, str_size);
-  //printf("%s\n", file_name);
 
   FILE* source;
   int size;
@@ -236,7 +243,7 @@ int respond(int sock) {
 
   source = fopen(file_path, "r");
 
-  // 파일이 존재하지 않을 경우
+  // 파일이 존재하지 않을 경우, 로그를 찍고 exit.
   if (source == NULL)
   {
     printf("Cannot find source\n");
@@ -244,6 +251,7 @@ int respond(int sock) {
   }
   
   fseek(source, 0, SEEK_END);
+  // 요청한 file의 실제 길이를 알아낸다.
   size = ftell(source);
 
   fseek(source, 0, SEEK_SET);
@@ -252,6 +260,7 @@ int respond(int sock) {
 
   int count = 0;
 
+  // file을 한글자씩 읽으며 buffer2에 끝까지 저장한다.
   while ( (ch = fgetc(source)) != EOF )
   {
     buffer2[count] = ch;
@@ -261,15 +270,17 @@ int respond(int sock) {
 
   fclose(source);
   
+  // Content length의 자릿수
   int Content_length_digit;
   Content_length_digit = countDigit(size);
 
+  // Content length 를 char array로 변환
   char Content_length[Content_length_digit];
 
   sprintf(Content_length, "%d", size);
 
 
-
+  // msg1 끝에 구한 content length를 붙여준다.
   char msg1[] = "HTTP/1.1 200 OK\r\nContent-length: ";
   int len1 = strlen(msg1);
   int new_len1 = len1 + Content_length_digit;
@@ -285,7 +296,7 @@ int respond(int sock) {
     new_msg1[len1 + i] = Content_length[i];
   }
 
-
+  // msg2 끝에 buffer2에 저장했던 body의 내용들을 붙여준다.
   char msg2[] = "\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n";
   int len2 = strlen(msg2);
   int new_len2 = len2 + size;
@@ -300,7 +311,7 @@ int respond(int sock) {
     new_msg2[len2 + i] = buffer2[i];
   }
 
-
+  // msg1과 msg2를 이어붙인다.
   int total_len = new_len1 + new_len2;
 
   char message[total_len];
