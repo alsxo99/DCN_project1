@@ -176,6 +176,21 @@ int main( int argc, char *argv[] ) {
 
   return 0;
 }
+
+int countDigit (int n) {
+  if (n == 0) return 1;
+
+  int count = 0;
+  
+  while (n != 0)
+  {
+    n = n / 10;
+    count++;
+  }
+  return count;
+}
+
+
 //TODO: complete respond function 40% of score
 int respond(int sock) {
 
@@ -205,7 +220,103 @@ int respond(int sock) {
   buffer[offset] = 0;
   printf("%s\n", buffer);
 
-  char message[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\n\r\n<html><body>Hello World!</body></html>\r\n\r\n";
+  char* file_start_index = strstr(buffer,"GET") + 5;
+  char* file_fin_index = strstr(buffer, "HTTP") - 1;
+  int str_size = (int)(file_fin_index - file_start_index);
+  //char file_name[str_size];
+
+  char* file_path = malloc(str_size);
+  strncpy(file_path, buffer+5, str_size);
+  //strncpy(file_name, buffer+5, str_size);
+  //printf("%s\n", file_name);
+
+  FILE* source;
+  int size;
+  char ch;
+
+  source = fopen(file_path, "r");
+
+  // 파일이 존재하지 않을 경우
+  if (source == NULL)
+  {
+    printf("Cannot find source\n");
+    exit(1);
+  }
+  
+  fseek(source, 0, SEEK_END);
+  size = ftell(source);
+
+  fseek(source, 0, SEEK_SET);
+
+  char buffer2[size];
+
+  int count = 0;
+
+  while ( (ch = fgetc(source)) != EOF )
+  {
+    buffer2[count] = ch;
+    count++;
+  }
+  
+
+  fclose(source);
+  
+  int Content_length_digit;
+  Content_length_digit = countDigit(size);
+
+  char Content_length[Content_length_digit];
+
+  sprintf(Content_length, "%d", size);
+
+
+
+  char msg1[] = "HTTP/1.1 200 OK\r\nContent-length: ";
+  int len1 = strlen(msg1);
+  int new_len1 = len1 + Content_length_digit;
+  char new_msg1[new_len1];
+
+
+  for (int i = 0; i < len1; i++)
+  {
+    new_msg1[i] = msg1[i];
+  }
+  for (int i = 0; i < Content_length_digit; i++)
+  {
+    new_msg1[len1 + i] = Content_length[i];
+  }
+
+
+  char msg2[] = "\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n";
+  int len2 = strlen(msg2);
+  int new_len2 = len2 + size;
+  char new_msg2[new_len2];
+
+  for (int i = 0; i < len2; i++)
+  {
+    new_msg2[i] = msg2[i];
+  }
+  for (int i = 0; i < size; i++)
+  {
+    new_msg2[len2 + i] = buffer2[i];
+  }
+
+
+  int total_len = new_len1 + new_len2;
+
+  char message[total_len];
+
+  for (int i = 0; i < new_len1; i++)
+  {
+    message[i] = new_msg1[i];
+  }
+  for (int i = 0; i < new_len2; i++)
+  {
+    message[new_len1 + i] = new_msg2[i];
+  }
+  
+  printf("%s\n", message);
+  
+
 
   int length = strlen(message);
   while(length > 0) {
@@ -219,4 +330,5 @@ int respond(int sock) {
   
   return 0;
 }
+
 
