@@ -193,19 +193,21 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
     copy_torrent_to_info (torrent, &info);
 
     // 내 peers list에 목적지 peer 가 있는 경우, 빼고 보내주어야 한다.
+    // 해당 peer port에 대입해서 server 쪽에서 handling 하자.
     int temp_num_peers = torrent->num_peers;
-    char* temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
+    
+    /*char** temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
     for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         temp_peer_ip[i] = malloc(sizeof(char) * STRING_LEN);
-    }
+    }*/
 
     int* temp_peer_port = malloc(sizeof(int) * MAX_PEER_NUM);
 
-    for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    /*for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         memcpy(temp_peer_ip[i], torrent->peer_ip[i], sizeof(char) * STRING_LEN + 1);
-    }
+    }*/
     
     memcpy(temp_peer_port, torrent->peer_port, sizeof(int) * MAX_PEER_NUM);
 
@@ -220,11 +222,12 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
 
     sprintf(buf, "PUSH_PEERS %d %x %x %d", listen_port, id_hash, info.hash, temp_num_peers);
     send_socket(sockfd, buf, STRING_LEN);
-    send_socket(sockfd, temp_peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
-    send_socket(sockfd, temp_peer_port, sizeof(int) * MAX_PEER_NUM);
+    send_socket(sockfd, (char*)torrent->peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
+    send_socket(sockfd, (char*)temp_peer_port, sizeof(int) * MAX_PEER_NUM);
     close_socket(sockfd);
 
     free(temp_peer_port);
+    
     return 0;
 }
 
@@ -440,7 +443,7 @@ int server_routine (int sockfd)
                 while (torrent->num_peers < MAX_PEER_NUM) // 내 torrent의 peer num 이 full이 될때 까지만 loop을 돈다. add 하면 알아서 늘어나겠지 ??
                 {
                     char temp_peer_ip[STRING_LEN];
-                    memcpy(temp_peer_ip, mem_peer_ip[i], sizeof(char) * STRING_LEN + 1);
+                    memcpy(temp_peer_ip, mem_peer_ip[i], sizeof(char) * STRING_LEN);
                     int temp_peer_port = mem_peer_port[i];
                     // 해당 peer가 나에게 존재하지 않을 때만, add peer을 해준다.
                     if (get_peer_idx (torrent, temp_peer_ip, temp_peer_port) < 0 && mem_peer_port[i] != 0)
@@ -538,8 +541,8 @@ int server_routine (int sockfd)
             recv_socket(newsockfd, torrent->block_ptrs[block_index], sizeof(char) * torrent->block_size);
             // torrent를 output file로 저장한다? 이게 data가 맞나. data의 의미를 잘 모르겠다.
             save_torrent_into_file(torrent, torrent->data);
-            // 이 함수도 잘 모르겠다.
-            update_peer_block_info(torrent, peer, peer_port, torrent->block_info);
+            // 해당 block은 받았으므로 block info 를 update 해준다.
+            torrent->block_info[block_index] = 1;
             if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
             {
                 add_peer_to_torrent(torrent, peer, peer_port, NULL);    
