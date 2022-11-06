@@ -164,6 +164,15 @@ int request_peers_from_peer(char *peer, int port, unsigned int torrent_hash)
         printf ("INFO - COMMAND REQUEST_PEERS to peer %s:%d, Torrent %x \n"
             , peer, port, torrent_hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    sprintf(buf, "REQUEST_PEERS %d %x %x", listen_port, id_hash, torrent_hash);
+    send_socket(sockfd, buf, STRING_LEN);
+    close_socket(sockfd);
     return 0;
 }
 
@@ -174,6 +183,48 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
         printf ("INFO - COMMAND PUSH_PEERS list to peer %s:%d, Torrent %x \n"
         , peer, port, torrent->hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    torrent_info info;
+    copy_torrent_to_info (torrent, &info);
+
+    // 내 peers list에 목적지 peer 가 있는 경우, 빼고 보내주어야 한다.
+    int temp_num_peers = torrent->num_peers;
+    char* temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
+    for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    {
+        temp_peer_ip[i] = malloc(sizeof(char) * STRING_LEN);
+    }
+
+    int* temp_peer_port = malloc(sizeof(int) * MAX_PEER_NUM);
+
+    for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    {
+        memcpy(temp_peer_ip[i], torrent->peer_ip[i], sizeof(char) * STRING_LEN + 1);
+    }
+    
+    memcpy(temp_peer_port, torrent->peer_port, sizeof(int) * MAX_PEER_NUM);
+
+    // peer의 index를 get_peer_idx 함수로 받아준다. 없다면 -1이 저장될 것이다.
+    int peer_index = get_peer_idx(torrent, peer, port);
+    if (peer_index >= 0) // 있다면, num_peers 에서 1을 빼주고, peer_ip 에서도 제거, peer_port 에서도 제거.
+    {
+        temp_num_peers -= 1;
+        //remove(temp_peer_ip[peer_index]);
+        temp_peer_port[peer_index] = 0;
+    }
+
+    sprintf(buf, "PUSH_PEERS %d %x %x %d", listen_port, id_hash, info.hash, temp_num_peers);
+    send_socket(sockfd, buf, STRING_LEN);
+    send_socket(sockfd, temp_peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
+    send_socket(sockfd, temp_peer_port, sizeof(int) * MAX_PEER_NUM);
+    close_socket(sockfd);
+
+    free(temp_peer_port);
     return 0;
 }
 
@@ -184,6 +235,15 @@ int request_block_info_from_peer(char *peer, int port, unsigned int torrent_hash
         printf ("INFO - COMMAND REQUEST_BLOCK_INFO to peer %s:%d, Torrent %x\n"
         , peer, port, torrent_hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    sprintf(buf, "REQUEST_BLOCK_INFO %d %x %x", listen_port, id_hash, torrent_hash);
+    send_socket(sockfd, buf, STRING_LEN);
+    close_socket(sockfd);
     return 0;
 }
 
@@ -194,6 +254,18 @@ int push_block_info_to_peer(char *peer, int port, torrent_file *torrent)
         printf ("INFO - COMMAND PUSH_BLOCK_INFO to peer %s:%d, Torrent %x\n"
         , peer, port, torrent->hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    torrent_info info;
+    copy_torrent_to_info (torrent, &info);
+    sprintf(buf, "PUSH_BLOCK_INFO %d %x %x", listen_port, id_hash, info.hash);
+    send_socket(sockfd, buf, STRING_LEN);
+    send_socket(sockfd, torrent->block_info, sizeof(char) * MAX_BLOCK_NUM);
+    close_socket(sockfd);
     return 0;
 }
 
@@ -204,6 +276,15 @@ int request_block_from_peer(char *peer, int port, torrent_file *torrent, int blo
         printf ("INFO - COMMAND REQUEST_BLOCK %d to peer %s:%d, Torrent %x\n"
        , block_idx, peer, port , torrent->hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    sprintf(buf, "REQUEST_BLOCK %d %x %x %d", listen_port, id_hash, torrent->hash, block_idx);
+    send_socket(sockfd, buf, STRING_LEN);
+    close_socket(sockfd);
     return 0;
 }
 
@@ -214,6 +295,18 @@ int push_block_to_peer(char *peer, int port, torrent_file *torrent, int block_id
         printf ("INFO - COMMAND PUSH_BLOCK %d to peer %s:%d, Torrent %x\n"
        , block_idx, peer, port , torrent->hash);
     // TODO: Implement (5 Points)
+    int sockfd = connect_socket(peer, port);
+    if (sockfd < 0) 
+    {
+        return -1;
+    }
+    char buf[STRING_LEN] = {0};
+    torrent_info info;
+    copy_torrent_to_info (torrent, &info);
+    sprintf(buf, "PUSH_BLOCK %d %x %x %d", listen_port, id_hash, info.hash, block_idx);
+    send_socket(sockfd, buf, STRING_LEN);
+    send_socket(sockfd, torrent->block_ptrs[block_idx], sizeof(char) * info.block_size);
+    close_socket(sockfd);
     // Hint: You can directly use the pointer to the block data for the send buffer of send_socket() call.
     return 0;
 }
@@ -238,9 +331,20 @@ int server_routine (int sockfd)
         unsigned int peer_id_hash;
         if (silent_mode == 0)
             printf ("from peer %s:%d\n", peer, peer_port);
-
+        // strtok 함수를 이용해 buf에 첫번째 " "가 나오기 전까지의 string인 command 정보를 저장한다.
+        cmd = strtok(buf, " ");
+        // strtok 의 첫번째 인자에 NULL을 넣어 그 이후부터 검색하여 peer_port를 찾고, strtol함수로 10진수로 해석하여 long -> int로 변환한다.
+        peer_port = strtol(strtok(NULL, " "), NULL, 10);
+        // 위와 같은 방법으로 peer_id_hash를 16진수로 해석하여 unsigned long -> int로 변환한다.
+        peer_id_hash = strtoul(strtok(NULL, " "), NULL, 16);
         // TODO: Check if command is sent from myself, and if it is, ignore the message. (HINT: use id_hash) (5 Points)
-
+        // id_hash와 peer_id_hash가 동일하다면 소켓을 닫고 아래의 action들은 ignore.
+        if (id_hash == peer_id_hash)
+        {
+            close_socket(newsockfd);
+            continue;
+        }
+        
 
         // Take action based on command.
         // Dont forget to close the socket, and reset the peer_req_num of the peer that have sent the command to zero.
@@ -291,6 +395,23 @@ int server_routine (int sockfd)
             // Peer's Message: "REQUEST_PEERS [MY_LISTEN_PORT] [MY_ID_HASH] [TORRENT_HASH]"
             // Hint: You might want to use  get_torrent(), push_peers_to_peer(), or add_peer_to_torrent().
             // TODO: Implement (5 Points)
+            close_socket(newsockfd);
+            // buf에서 torrent_hash를 뽑아낸다. 
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            // torrent_hash를 갖는 torrent를 보유하고 있는지 확인한다.
+            torrent_file *torrent = get_torrent(torrent_hash);
+            // 내 torrent의 num_peers가 하나 이상일 경우, peer를 전송해준다.
+            if (torrent->num_peers > 0)
+            {
+                push_peers_to_peer(peer, peer_port, torrent);
+                // 요청을 보낸 peer가 torrent에 저장되어 있지 않고, 내 num_peer가 꽉차지 않았을 경우에 add해준다.
+                if (get_peer_idx (torrent, peer, peer_port) < 0 && torrent->num_peers < MAX_PEER_NUM)
+                {
+                    // 내 peer가 꽉차있지 않은지 확인은 안하나?? 해결.
+                    add_peer_to_torrent(torrent, peer, peer_port, NULL);
+                }
+                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0; // 여기에 있던 add 바로 밑에 있던 똑같은듯.
+            }
         }
         else if (strcmp(cmd, "PUSH_PEERS") == 0) 
         {
@@ -299,6 +420,45 @@ int server_routine (int sockfd)
             // Hint: You might want to use get_torrent(), or add_peer_to_torrent().
             //       Dont forget to add the peer who sent the list(), if not already added.
             // TODO: Implement (5 Points)
+            // 마찬가지로 torrnet_hash 를 뽑아내고, 
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            // torrent_num_peers 를 뽑아낸다.
+            unsigned int torrent_num_peers = strtol(strtok(NULL, " "), NULL, 10);
+            // 해당 torrent를 가지고 있는지 확인한다.
+            torrent_file *torrent = get_torrent(torrent_hash);
+            // if 안에 들어갈게 torrent == NULL 일수도 ?
+            if (torrent->num_peers < MAX_PEER_NUM) // 내 torrent의 peer num 이 꽉차지 않았을 경우 받는다.
+            {
+                // 일단 받은 peer_ip, peer_port 정보를 저장한다.
+                char mem_peer_ip[MAX_PEER_NUM][STRING_LEN];
+                int mem_peer_port[MAX_PEER_NUM];
+
+                recv_socket(newsockfd, mem_peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
+                recv_socket(newsockfd, mem_peer_port, sizeof(int) * MAX_PEER_NUM);
+
+                int i = 0;
+                while (torrent->num_peers < MAX_PEER_NUM) // 내 torrent의 peer num 이 full이 될때 까지만 loop을 돈다. add 하면 알아서 늘어나겠지 ??
+                {
+                    char temp_peer_ip[STRING_LEN];
+                    memcpy(temp_peer_ip, mem_peer_ip[i], sizeof(char) * STRING_LEN + 1);
+                    int temp_peer_port = mem_peer_port[i];
+                    // 해당 peer가 나에게 존재하지 않을 때만, add peer을 해준다.
+                    if (get_peer_idx (torrent, temp_peer_ip, temp_peer_port) < 0 && mem_peer_port[i] != 0)
+                    {
+                        add_peer_to_torrent(torrent, temp_peer_ip, temp_peer_port, NULL);
+                    }
+                    torrent->peer_req_num [get_peer_idx (torrent, temp_peer_ip, temp_peer_port)] = 0; // 여기에 있던 add 바로 밑에 있던 똑같은듯.
+                    i++;
+                }
+                
+                // 요청을 보낸 peer가 내 torrent peer list에 존재하지 않고, 내 torrent num peers가 꽉 차지 않았을 경우에 add한다.
+                if (get_peer_idx (torrent, peer, peer_port) < 0 && torrent->num_peers < MAX_PEER_NUM)
+                {
+                    add_peer_to_torrent(torrent, peer, peer_port, NULL);
+                }
+                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0; // 근데 이러면 꽉 차서 못받았으면 0으로 바꾸면 안되는디
+                close_socket(newsockfd);
+            }
         }
         else if (strcmp(cmd, "REQUEST_BLOCK_INFO") == 0) 
         {
@@ -306,6 +466,18 @@ int server_routine (int sockfd)
             // Peer's Message: "REQUEST_BLOCK_INFO [MY_LISTEN_PORT] [MY_ID_HASH] [TORRENT_HASH]"
             // Hint: You might want to use  get_torrent(), push_block_info_to_peer(), or add_peer_to_torrent().
             // TODO: Implement (5 Points)
+            close_socket(newsockfd);
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            torrent_file *torrent = get_torrent(torrent_hash);
+            if (torrent != NULL) // 해당 torrent를 보유하고 있다면, push_blck_info_to_peer
+            {
+                push_block_info_to_peer(peer, peer_port, torrent);
+                if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
+                {
+                    add_peer_to_torrent(torrent, peer, peer_port, NULL);    
+                }
+                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
+            }
         }
         else if (strcmp(cmd, "PUSH_BLOCK_INFO") == 0)
         {
@@ -313,6 +485,21 @@ int server_routine (int sockfd)
             // Peer's Message: "PUSH_BLOCK_INFO [MY_LISTEN_PORT] [MY_ID_HASH] [TORRENT_HASH]"[BLOCK_INFO]
             // Hint: You might want to use get_torrent(), update_peer_block_info(), or add_peer_to_torrent().
             // TODO: Implement (5 Points)
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            torrent_file *torrent = get_torrent(torrent_hash);
+            
+            // 일단 받은 block info를 저장한다.
+            char mem_block_info[MAX_BLOCK_NUM];
+            recv_socket(newsockfd, mem_block_info, sizeof(char) * MAX_BLOCK_NUM);
+            // 받은 block info를 update 해준다.
+            update_peer_block_info(torrent, peer, peer_port, mem_block_info);
+
+            if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
+            {
+                add_peer_to_torrent(torrent, peer, peer_port, mem_block_info);    
+            }
+            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
+            close_socket(newsockfd);
         }
         else if (strcmp(cmd, "REQUEST_BLOCK") == 0) 
         {
@@ -320,6 +507,22 @@ int server_routine (int sockfd)
             // Peer's Message: "REQUEST_BLOCK [MY_LISTEN_PORT] [MY_ID_HASH] [TORRENT_HASH] [BLOCK_INDEX]"
             // Hint: You might want to use get_torrent(), push_block_to_peer(), or add_peer_to_torrent().
             // TODO: Implement (5 Points)
+            close_socket(newsockfd);
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            // block index를 받아준다.
+            int block_index = strtol(strtok(NULL, " "), NULL, 10);
+            torrent_file *torrent = get_torrent(torrent_hash);
+            if (torrent != NULL)
+            {
+                // push_block_to_peer 함수를 이용하여 해당 block을 push.
+                push_block_to_peer(peer, peer_port, torrent, block_index);
+                if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
+                {
+                    add_peer_to_torrent(torrent, peer, peer_port, NULL);    
+                }
+                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
+            }
+            close_socket(newsockfd);
         }
         else if (strcmp(cmd, "PUSH_BLOCK") == 0) 
         {
@@ -328,6 +531,20 @@ int server_routine (int sockfd)
             // Hint: You might want to use get_torrent(), save_torrent_into_file(), update_peer_block_info(), or add_peer_to_torrent().
             //       You can directly use the pointer to the block data for the receive buffer of recv_socket() call.
             // TODO: Implement (5 Points)
+            unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
+            int block_index = strtol(strtok(NULL, " "), NULL, 10);
+            torrent_file *torrent = get_torrent(torrent_hash);
+            // block_ptrs[block_index] 에 받은 정보를 바로 저장한다.
+            recv_socket(newsockfd, torrent->block_ptrs[block_index], sizeof(char) * torrent->block_size);
+            // torrent를 output file로 저장한다? 이게 data가 맞나. data의 의미를 잘 모르겠다.
+            save_torrent_into_file(torrent, torrent->data);
+            // 이 함수도 잘 모르겠다.
+            update_peer_block_info(torrent, peer, peer_port, torrent->block_info);
+            if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
+            {
+                add_peer_to_torrent(torrent, peer, peer_port, NULL);    
+            }
+            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
         }
         else
         {
