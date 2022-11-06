@@ -198,7 +198,7 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
     int temp_num_peers = torrent->num_peers;
     
     // torrent의 peer_ip를 임시로 저장할 temp_peer_ip 를 만들어 값을 넣어주자.
-    char** temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
+    /*char** temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
     for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         temp_peer_ip[i] = malloc(sizeof(char) * STRING_LEN);
@@ -206,7 +206,7 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
     for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         memcpy(temp_peer_ip[i], torrent->peer_ip[i], sizeof(char) * STRING_LEN + 1);
-    }
+    }*/
     // torrent의 peer_port를 임시로 저장할 temp_peer_port를 만들어 값을 넣어주자.
     int* temp_peer_port = malloc(sizeof(int) * MAX_PEER_NUM);
     
@@ -226,11 +226,11 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
     send_socket(sockfd, (char*)temp_peer_port, sizeof(int) * MAX_PEER_NUM);
     close_socket(sockfd);
 
-    for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    /*for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         free(temp_peer_ip[i]);
     }
-    free(temp_peer_ip);
+    free(temp_peer_ip);*/
     free(temp_peer_port);
     
     return 0;
@@ -438,11 +438,11 @@ int server_routine (int sockfd)
             if (torrent->num_peers < MAX_PEER_NUM) // 내 torrent의 peer num 이 꽉차지 않았을 경우 받는다.
             {
                 // 일단 받은 peer_ip, peer_port 정보를 저장한다.
-                char mem_peer_ip[MAX_PEER_NUM][STRING_LEN];
-                int mem_peer_port[MAX_PEER_NUM];
+                char mem_peer_ip[MAX_PEER_NUM][STRING_LEN] = {0};
+                int mem_peer_port[MAX_PEER_NUM] = {0};
 
-                recv_socket(newsockfd, mem_peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
-                recv_socket(newsockfd, mem_peer_port, sizeof(int) * MAX_PEER_NUM);
+                recv_socket(newsockfd, (char*)mem_peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
+                recv_socket(newsockfd, (char*)mem_peer_port, sizeof(int) * MAX_PEER_NUM);
 
                 int i = 0;
                 // ******** 확인 필요 *********
@@ -496,7 +496,7 @@ int server_routine (int sockfd)
             // TODO: Implement (5 Points)
             unsigned int torrent_hash = strtoul(strtok(NULL, " "), NULL, 16);
             torrent_file *torrent = get_torrent(torrent_hash);
-            
+
             // 일단 받은 block info를 저장한다.
             char mem_block_info[MAX_BLOCK_NUM];
             recv_socket(newsockfd, mem_block_info, sizeof(char) * MAX_BLOCK_NUM);
@@ -697,9 +697,9 @@ int main(int argc, char *argv[])
         while (1) 
         {
             // Run server & client routines concurrently
-            server_routine_ans(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
+            server_routine(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
             client_routine_ans();           // Your implementation of client_routine() should be able to replace client_routine_ans() in this line.
-            server_routine_ans(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
+            server_routine(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
 
             // Take some action every "SLEEP_TIME_MSEC" milliseconds
             if (start_time == 0 || start_time + SLEEP_TIME_MSEC < get_time_msec())
@@ -740,9 +740,9 @@ int main(int argc, char *argv[])
         while (1) 
         {
             // Run server & client routines concurrently
-            server_routine_ans(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
+            server_routine(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
             client_routine_ans();           // Your implementation of client_routine() should be able to replace client_routine_ans() in this line.
-            server_routine_ans(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
+            server_routine(sockfd);     // Your implementation of server_routine() should be able to replace server_routine_ans() in this line.
 
             // Take some action every "SLEEP_TIME_MSEC" milliseconds
             if (start_time == 0 || start_time + SLEEP_TIME_MSEC < get_time_msec())
