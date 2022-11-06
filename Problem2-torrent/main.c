@@ -418,7 +418,6 @@ int server_routine (int sockfd)
                     // 내 peer가 꽉차있지 않은지 확인은 안하나?? 해결.
                     add_peer_to_torrent(torrent, peer, peer_port, NULL);
                 }
-                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0; // 여기에 있던 add 바로 밑에 있던 똑같은듯.
             }
         }
         else if (strcmp(cmd, "PUSH_PEERS") == 0) 
@@ -456,7 +455,7 @@ int server_routine (int sockfd)
                     {
                         add_peer_to_torrent(torrent, temp_peer_ip, temp_peer_port, NULL);
                     }
-                    torrent->peer_req_num [get_peer_idx (torrent, temp_peer_ip, temp_peer_port)] = 0; // 여기에 있던 add 바로 밑에 있던 똑같은듯.
+                    torrent->peer_req_num [get_peer_idx (torrent, temp_peer_ip, temp_peer_port)] -= 1; // 여기에 있던 add 바로 밑에 있던 똑같은듯.
                     i++;
                 }
                 
@@ -465,7 +464,7 @@ int server_routine (int sockfd)
                 {
                     add_peer_to_torrent(torrent, peer, peer_port, NULL);
                 }
-                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0; // 근데 이러면 꽉 차서 못받았으면 0으로 바꾸면 안되는디
+                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] -= 1;
                 close_socket(newsockfd);
             }
         }
@@ -485,7 +484,6 @@ int server_routine (int sockfd)
                 {
                     add_peer_to_torrent(torrent, peer, peer_port, NULL);    
                 }
-                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
             }
         }
         else if (strcmp(cmd, "PUSH_BLOCK_INFO") == 0)
@@ -499,7 +497,7 @@ int server_routine (int sockfd)
 
             // 일단 받은 block info를 저장한다.
             char mem_block_info[MAX_BLOCK_NUM];
-            recv_socket(newsockfd, mem_block_info, sizeof(char) * MAX_BLOCK_NUM);
+            recv_socket(newsockfd, (char*)mem_block_info, sizeof(char) * MAX_BLOCK_NUM);
             // 받은 block info를 update 해준다.
             update_peer_block_info(torrent, peer, peer_port, mem_block_info);
 
@@ -507,7 +505,7 @@ int server_routine (int sockfd)
             {
                 add_peer_to_torrent(torrent, peer, peer_port, mem_block_info);    
             }
-            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
+            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] -= 1;
             close_socket(newsockfd);
         }
         else if (strcmp(cmd, "REQUEST_BLOCK") == 0) 
@@ -529,7 +527,6 @@ int server_routine (int sockfd)
                 {
                     add_peer_to_torrent(torrent, peer, peer_port, NULL);    
                 }
-                torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
             }
             close_socket(newsockfd);
         }
@@ -545,10 +542,11 @@ int server_routine (int sockfd)
             torrent_file *torrent = get_torrent(torrent_hash);
             // block_ptrs[block_index] 에 받은 정보를 바로 저장한다.
             recv_socket(newsockfd, torrent->block_ptrs[block_index], sizeof(char) * torrent->block_size);
+            // 해당 block은 받았으므로 block info 를 update 해준다.
+            torrent->downloaded_block_num += 1;
+            torrent->block_info[block_index] = '1';
             // torrent를 output file로 저장한다.
             save_torrent_into_file(torrent, torrent->name);
-            // 해당 block은 받았으므로 block info 를 update 해준다.
-            torrent->block_info[block_index] = '1';
             if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
             {
                 add_peer_to_torrent(torrent, peer, peer_port, NULL);
@@ -556,7 +554,7 @@ int server_routine (int sockfd)
                 int peer_index = get_peer_idx(torrent, peer, peer_port);
                 torrent->peer_block_info[peer_index][block_index] = '1';
             }
-            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
+            torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] -= 1;
         }
         else
         {
