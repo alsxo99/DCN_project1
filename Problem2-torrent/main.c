@@ -193,39 +193,44 @@ int push_peers_to_peer(char *peer, int port, torrent_file *torrent)
     copy_torrent_to_info (torrent, &info);
 
     // 내 peers list에 목적지 peer 가 있는 경우, 빼고 보내주어야 한다.
+    // 실제로 빼주면 안되니까 임시 저장 buffer를 만들자.
     // 해당 peer port에 대입해서 server 쪽에서 handling 하자.
     int temp_num_peers = torrent->num_peers;
     
-    /*char** temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
+    // torrent의 peer_ip를 임시로 저장할 temp_peer_ip 를 만들어 값을 넣어주자.
+    char** temp_peer_ip = malloc(sizeof(char*) * MAX_BLOCK_NUM);
     for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         temp_peer_ip[i] = malloc(sizeof(char) * STRING_LEN);
-    }*/
-
-    int* temp_peer_port = malloc(sizeof(int) * MAX_PEER_NUM);
-
-    /*for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    }
+    for (int i = 0; i < MAX_BLOCK_NUM; i++)
     {
         memcpy(temp_peer_ip[i], torrent->peer_ip[i], sizeof(char) * STRING_LEN + 1);
-    }*/
+    }
+    // torrent의 peer_port를 임시로 저장할 temp_peer_port를 만들어 값을 넣어주자.
+    int* temp_peer_port = malloc(sizeof(int) * MAX_PEER_NUM);
     
     memcpy(temp_peer_port, torrent->peer_port, sizeof(int) * MAX_PEER_NUM);
 
     // peer의 index를 get_peer_idx 함수로 받아준다. 없다면 -1이 저장될 것이다.
     int peer_index = get_peer_idx(torrent, peer, port);
-    if (peer_index >= 0) // 있다면, num_peers 에서 1을 빼주고, peer_ip 에서도 제거, peer_port 에서도 제거.
+    if (peer_index >= 0) // 있다면, num_peers 에서 1을 빼주고, peer_ip 에서도 제거, peer_port 에서도 제거. -> peer_port 에 0을 넣는 것으로 handling 하자.
     {
-        temp_num_peers -= 1;
         //remove(temp_peer_ip[peer_index]);
         temp_peer_port[peer_index] = 0;
     }
 
     sprintf(buf, "PUSH_PEERS %d %x %x %d", listen_port, id_hash, info.hash, temp_num_peers);
     send_socket(sockfd, buf, STRING_LEN);
-    send_socket(sockfd, (char*)torrent->peer_ip, sizeof(char) * MAX_PEER_NUM * STRING_LEN);
+    send_socket(sockfd, (char*)(torrent->peer_ip), sizeof(char) * MAX_PEER_NUM * STRING_LEN);
     send_socket(sockfd, (char*)temp_peer_port, sizeof(int) * MAX_PEER_NUM);
     close_socket(sockfd);
 
+    for (int i = 0; i < MAX_BLOCK_NUM; i++)
+    {
+        free(temp_peer_ip[i]);
+    }
+    free(temp_peer_ip);
     free(temp_peer_port);
     
     return 0;
@@ -440,7 +445,8 @@ int server_routine (int sockfd)
                 recv_socket(newsockfd, mem_peer_port, sizeof(int) * MAX_PEER_NUM);
 
                 int i = 0;
-                while (torrent->num_peers < MAX_PEER_NUM) // 내 torrent의 peer num 이 full이 될때 까지만 loop을 돈다. add 하면 알아서 늘어나겠지 ??
+                // ******** 확인 필요 *********
+                while (torrent->num_peers < MAX_PEER_NUM && i < torrent_num_peers) // 내 torrent의 peer num 이 full이 될때 까지만 loop을 돈다. add 하면 알아서 늘어나겠지 ??
                 {
                     char temp_peer_ip[STRING_LEN];
                     memcpy(temp_peer_ip, mem_peer_ip[i], sizeof(char) * STRING_LEN);
@@ -539,13 +545,16 @@ int server_routine (int sockfd)
             torrent_file *torrent = get_torrent(torrent_hash);
             // block_ptrs[block_index] 에 받은 정보를 바로 저장한다.
             recv_socket(newsockfd, torrent->block_ptrs[block_index], sizeof(char) * torrent->block_size);
-            // torrent를 output file로 저장한다? 이게 data가 맞나. data의 의미를 잘 모르겠다.
-            save_torrent_into_file(torrent, torrent->data);
+            // torrent를 output file로 저장한다.
+            save_torrent_into_file(torrent, torrent->name);
             // 해당 block은 받았으므로 block info 를 update 해준다.
-            torrent->block_info[block_index] = 1;
+            torrent->block_info[block_index] = '1';
             if (get_peer_idx (torrent, peer, peer_port) < 0) // 꽉차는거 확인을 안해줘도 되나 ??
             {
-                add_peer_to_torrent(torrent, peer, peer_port, NULL);    
+                add_peer_to_torrent(torrent, peer, peer_port, NULL);
+                // 이 peer는 나에게 보내준 block을 가지고 있기 때문에 peer_block_info 를 수정해준다.
+                int peer_index = get_peer_idx(torrent, peer, peer_port);
+                torrent->peer_block_info[peer_index][block_index] = '1';
             }
             torrent->peer_req_num [get_peer_idx (torrent, peer, peer_port)] = 0;
         }
@@ -574,6 +583,15 @@ int client_routine ()
         //          If request_block_from_peer() returns -1, the request failed. 
         //          If the request has failed AND peer_req_num is more than PEER_EVICTION_REQ_NUM, 
         //          evict the peer from the torrent using remove_peer_from_torrent().
+        for (int j = 0; j < MAX_BLOCK_NUM; j++)
+        {
+            if (torrent->block_info[j] == '0')
+            {
+                
+            }
+            
+        }
+        
     }
     // Iterate through global torrent list on "peer_update_interval_msec" and 
     // request block info update from all peers on the selected torrent.
