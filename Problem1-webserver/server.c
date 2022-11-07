@@ -235,41 +235,58 @@ int respond(int sock) {
 
   // request message에서 file path만 뽑아냈다.
   char* file_path = malloc(str_size);
+  memset(file_path, 0, str_size);
   strncpy(file_path, buffer+5, str_size);
 
   FILE* source;
-  int size;
-  char ch;
+  long size;
+  //char ch;
 
-  source = fopen(file_path, "r");
+  source = fopen(file_path, "rb");
 
-  // 파일이 존재하지 않을 경우, 로그를 찍고 exit.
+  // 파일이 존재하지 않을 경우, 404 Response로 응답.
   if (source == NULL)
   {
+    // perror ?
     printf("Cannot find source\n");
-    exit(1);
+    char message[] = "HTTP/1.1 404 NOTFOUND\r\n\r\n";
+
+    printf("%s\n", message);
+  
+    int length = strlen(message);
+    while(length > 0) {
+      printf("send bytes : %d\n", bytes);
+      bytes = send(sock, message, length, 0);
+      length = length - bytes;
+    }
+    printf("close\n\n");
+    shutdown(sock, SHUT_RDWR);
+    close(sock);
+
+    return 0;
   }
   
   fseek(source, 0, SEEK_END);
   // 요청한 file의 실제 길이를 알아낸다.
   size = ftell(source);
 
-  fseek(source, 0, SEEK_SET);
+  rewind(source);
 
-  char buffer2[size];
+  char* body = (char*) malloc(size);
+  //bzero(body, size);
 
-  int count = 0;
+  //int count = 0;
 
-  // file을 한글자씩 읽으며 buffer2에 끝까지 저장한다.
-  while ( (ch = fgetc(source)) != EOF )
-  {
-    buffer2[count] = ch;
-    count++;
-  }
+  // file을 한글자씩 읽으며 body에 끝까지 저장한다.
+  // while ( (ch = fgetc(source)) != EOF )
+  // {
+  //   body[count] = ch;
+  //   count++;
+  // }
+  fread(body, size, 1, source);
   
-
   fclose(source);
-  
+
   // Content length의 자릿수
   int Content_length_digit;
   Content_length_digit = countDigit(size);
@@ -277,57 +294,31 @@ int respond(int sock) {
   // Content length 를 char array로 변환
   char Content_length[Content_length_digit];
 
-  sprintf(Content_length, "%d", size);
+  sprintf(Content_length, "%ld", size);
 
 
   // msg1 끝에 구한 content length를 붙여준다.
-  char msg1[] = "HTTP/1.1 200 OK\r\nContent-length: ";
+  char msg1[] = "HTTP/1.1 200 OK\r\nContent-Length: ";
+  char msg2[] = "\r\nConnection: close\r\n\r\n";
   int len1 = strlen(msg1);
-  int new_len1 = len1 + Content_length_digit;
-  char new_msg1[new_len1];
-
+  int len2 = strlen(msg2);
+  int new_len = len1 + len2 + Content_length_digit;
+  char message[new_len];
 
   for (int i = 0; i < len1; i++)
   {
-    new_msg1[i] = msg1[i];
+    message[i] = msg1[i];
   }
   for (int i = 0; i < Content_length_digit; i++)
   {
-    new_msg1[len1 + i] = Content_length[i];
+    message[len1 + i] = Content_length[i];
   }
-
-  // msg2 끝에 buffer2에 저장했던 body의 내용들을 붙여준다.
-  char msg2[] = "\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n";
-  int len2 = strlen(msg2);
-  int new_len2 = len2 + size;
-  char new_msg2[new_len2];
-
   for (int i = 0; i < len2; i++)
   {
-    new_msg2[i] = msg2[i];
-  }
-  for (int i = 0; i < size; i++)
-  {
-    new_msg2[len2 + i] = buffer2[i];
-  }
-
-  // msg1과 msg2를 이어붙인다.
-  int total_len = new_len1 + new_len2;
-
-  char message[total_len];
-
-  for (int i = 0; i < new_len1; i++)
-  {
-    message[i] = new_msg1[i];
-  }
-  for (int i = 0; i < new_len2; i++)
-  {
-    message[new_len1 + i] = new_msg2[i];
+    message[len1 + Content_length_digit + i] = msg2[i];
   }
   
   printf("%s\n", message);
-  
-
 
   int length = strlen(message);
   while(length > 0) {
@@ -335,11 +326,20 @@ int respond(int sock) {
     bytes = send(sock, message, length, 0);
     length = length - bytes;
   }
-  printf("close\n");
+
+  send(sock, body, size, 0);
+  
+
+  printf("close\n\n");
   shutdown(sock, SHUT_RDWR);
   close(sock);
+
+  // free(file_start_index);
+  // free(file_fin_index);
+  // free(file_path);
+  // free(body);
   
-  return 0;
+  return 1;
 }
 
 
