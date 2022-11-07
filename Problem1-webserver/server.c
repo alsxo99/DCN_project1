@@ -20,7 +20,7 @@
 
 int respond (int sock);
 
-char username[] = "username";
+char username[] = "2018-10359";
 char password[] = "password";
 #include <stdint.h>
 #include <stdlib.h>
@@ -59,7 +59,7 @@ int main( int argc, char *argv[] ) {
   clilen = sizeof(cli_addr);
 
   printf("encoding start \n");// We have implemented base64 encoding you just need to use this function
-  char *token = base64_encode("username:password", strlen("username:password"));//you can change your userid
+  char *token = base64_encode("2018-10359:password", strlen("2018-10359:password"));//you can change your userid
   printf("encoding end \n");
   
   //browser will respond with base64 encoded "userid:password" string 
@@ -91,14 +91,14 @@ int main( int argc, char *argv[] ) {
 
   /* TODO : Now bind the host address using bind() call. 10% of score*/
     //it was mostly same as tutorial
-
-    if ( bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1 ){
+    // socket에 주소를 할당.
+  if ( bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1 ){
     perror("bind error");
     exit(1);
   }
 
   /* TODO : listen on socket you created  10% of score*/
-
+    // 연결 요청을 대기.
   if ( listen(sockfd, 10) == -1 ){
     perror("listen error");
     exit(1);
@@ -116,7 +116,6 @@ int main( int argc, char *argv[] ) {
       //TODO: send 401 message(more information about 401 message : https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication) and authentificate user
       //close connection
       
-
       // request 정보를 읽어보는 알고리즘은 respond() 함수와 같다.
       int offset, bytes;
       char buffer[9000];
@@ -145,10 +144,9 @@ int main( int argc, char *argv[] ) {
       printf("%s\n", buffer);
       
       // request의 Authorization value가 token과 일치하면 break.
-      // => buffer에 token 이 존재하는지 유무로 따졌다.
+      // => buffer에 token 이 존재하는지 유무를 ststr함수를 이용하여 따졌다.
       if ( strstr(buffer, token) )
       {
-        printf("WOW\n");
         break;
       }
   
@@ -235,7 +233,6 @@ int respond(int sock) {
 
   // request message에서 file path만 뽑아냈다.
   char* file_path = malloc(str_size);
-  memset(file_path, 0, str_size);
   strncpy(file_path, buffer+5, str_size);
 
   FILE* source;
@@ -267,22 +264,16 @@ int respond(int sock) {
   }
   
   fseek(source, 0, SEEK_END);
-  // 요청한 file의 실제 길이를 알아낸다.
+  // 요청한 file의 실제 size를 알아낸다.
   size = ftell(source);
 
+  // file을 read하기 위해 포인터를 다시 앞으로 보낸다.
   rewind(source);
 
+  // body에 들어갈 file의 내용을 읽을 buffer(body)를 만든다.
   char* body = (char*) malloc(size);
-  //bzero(body, size);
-
-  //int count = 0;
-
-  // file을 한글자씩 읽으며 body에 끝까지 저장한다.
-  // while ( (ch = fgetc(source)) != EOF )
-  // {
-  //   body[count] = ch;
-  //   count++;
-  // }
+  
+  // fread함수를 이용하여 file을 buffer(body)에 저장한다.
   fread(body, size, 1, source);
   
   fclose(source);
@@ -291,13 +282,13 @@ int respond(int sock) {
   int Content_length_digit;
   Content_length_digit = countDigit(size);
 
-  // Content length 를 char array로 변환
+  // size 를 char array로 변환
   char Content_length[Content_length_digit];
 
   sprintf(Content_length, "%ld", size);
 
 
-  // msg1 끝에 구한 content length를 붙여준다.
+  // body를 제외한 message들을 이어붙인다.
   char msg1[] = "HTTP/1.1 200 OK\r\nContent-Length: ";
   char msg2[] = "\r\nConnection: close\r\n\r\n";
   int len1 = strlen(msg1);
@@ -320,6 +311,7 @@ int respond(int sock) {
   
   printf("%s\n", message);
 
+  // body 앞의 message들을 send.
   int length = strlen(message);
   while(length > 0) {
     printf("send bytes : %d\n", bytes);
@@ -327,17 +319,13 @@ int respond(int sock) {
     length = length - bytes;
   }
 
+  // body 를 send.
   send(sock, body, size, 0);
   
 
   printf("close\n\n");
   shutdown(sock, SHUT_RDWR);
   close(sock);
-
-  // free(file_start_index);
-  // free(file_fin_index);
-  // free(file_path);
-  // free(body);
   
   return 1;
 }
