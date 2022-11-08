@@ -147,6 +147,9 @@ int main( int argc, char *argv[] ) {
       // => buffer에 token 이 존재하는지 유무를 ststr함수를 이용하여 따졌다.
       if ( strstr(buffer, token) )
       {
+        char message[] = "HTTP/1.1 200 OK\r\n\r\n";
+        send(newsockfd, message, strlen(message), 0);
+        close(newsockfd);
         break;
       }
   
@@ -268,7 +271,7 @@ int respond(int sock) {
   size = ftell(source);
 
   // file을 read하기 위해 포인터를 다시 앞으로 보낸다.
-  rewind(source);
+  fseek(source, 0, SEEK_SET);
 
   // body에 들어갈 file의 내용을 읽을 buffer(body)를 만든다.
   char* body = (char*) malloc(size);
